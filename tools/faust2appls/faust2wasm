@@ -50,7 +50,7 @@ do
         echo "Use '-worklet' to generate AudioWorklet compatible code"
         echo "Use '-wap' to generate a WAP (Web Audio Plugin). This forces -worklet mode, and create additional files"
         echo "Use '-comb' to combine several DSPs in a unique resulting 'comb.js' file, sharing the same Emscripten runtime"
-        echo "Use '-emcc' to compile C++ generated code to wasm with Emscripten, otherwise the internal wasm backend is used"
+        echo "Use '-emcc' to compile C++ generated code to wasm with Emscripten, otherwise the internal wasm backend is used [experimental]"
         echo "Use '-npm' to add a package.json file for npm package distribution"
         exit
     elif [ $p = "-comb" ]; then
@@ -206,29 +206,41 @@ EndOfCode
     	echo "{" > main.json
     	echo "\"name\": \"$name\"," >> main.json
     	echo "\"vendor\": \"Faust\"," >> main.json
-    	echo "\"version\": \"1.0\"," >> main.json
-    	echo "\"url\": \"$name.js\"," >> main.json
+    	echo "\"version\": \"1.01\"," >> main.json
     	echo "\"homepage\": \"https://faust.grame.fr\"," >> main.json
     	echo "\"thumbnail\": \"\"" >> main.json
     	echo "}" >> main.json
     	
         # compose the HTML test page
-        cp  $FAUSTARCH/webaudio/testWAP.html test$name-tmp1.html
+        if [ $POLY = true ]; then
+        	cp  $FAUSTARCH/webaudio/testWAPPoly.html test$name-tmp1.html
+        else
+        	cp  $FAUSTARCH/webaudio/testWAP.html test$name-tmp1.html
+        fi
         sed -e "s/VENDOR/"Faust"/g" test$name-tmp1.html >> test$name-tmp2.html
         sed -e "s/DSP/"$name"/g" test$name-tmp2.html > test$name.html
     fi
 
     # collect binary file name
     if [ $WORKLET = "true" ]; then
+    	rm -f $name"_effect".wasm test$name-tmp1.html test$name-tmp2.html
     	if [ $WAP = "true" ]; then
-        	BINARIES="$BINARIES$name.js, $name-processor.js, main.json, test$name.html;"
+    		mv $name.js main.js
+    		mv test$name.html index.html
+        	BINARIES="$BINARIES main.js, $name.wasm, main.json, index.html"
         else
-        	BINARIES="$BINARIES$name.js, $name-processor.js;"
+        	BINARIES="$BINARIES$name.js, $name-processor.js, $name.wasm"
         fi
-        rm -f $name.wasm $name"_effect".wasm test$name-tmp1.html test$name-tmp2.html
     else
-        BINARIES="$BINARIES$name.js, $name.wasm;"
+        BINARIES="$BINARIES$name.js, $name.wasm"
     fi
+
+    if [ "$NPM" = "true" ]; then
+        sed -e "s/mydsp/"$name"/g" $FAUSTARCH/webaudio/package.json > package.json
+        BINARIES="$BINARIES, package.json"
+    fi
+    
+    BINARIES="$BINARIES;"
 
     if [ "$NPM" = "true" ]; then
         sed -e "s/mydsp/"$name"/g" $FAUSTARCH/webaudio/package.json > package.json
@@ -323,7 +335,14 @@ if [ $EMCC = "true" ]; then
 fi
 
 # collect binary file name
-BINARIES="comb.js;"
+BINARIES="comb.js"
+
+if [ "$NPM" = "true" ]; then
+    sed -e "s/mydsp/"$name"/g" $FAUSTARCH/webaudio/package.json > package.json
+    BINARIES="$BINARIES, package.json"
+fi
+
+BINARIES="$BINARIES;"
 
 if [ "$NPM" = "true" ]; then
     sed -e "s/mydsp/comb/g" $FAUSTARCH/webaudio/package.json > package.json

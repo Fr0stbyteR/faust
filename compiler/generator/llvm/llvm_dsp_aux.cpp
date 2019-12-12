@@ -50,6 +50,9 @@
 using namespace llvm;
 using namespace std;
 
+// Used by LLVM backend (for now)
+Soundfile* dynamic_defaultsound = new Soundfile(64);
+
 #define LLVM_BACKEND_NAME "Faust LLVM backend"
 
 #ifdef LLVM_MACHINE
@@ -114,7 +117,7 @@ bool llvm_dsp_factory_aux::crossCompile(const string& target)
 void llvm_dsp_factory_aux::startLLVMLibrary()
 {
     if (llvm_dsp_factory_aux::gInstance++ == 0) {
-        // Install a LLVM error handler
+        // Install an LLVM error handler
         LLVMInstallFatalErrorHandler(llvm_dsp_factory_aux::LLVMFatalErrorHandler);
     }
 }
@@ -122,7 +125,10 @@ void llvm_dsp_factory_aux::startLLVMLibrary()
 void llvm_dsp_factory_aux::stopLLVMLibrary()
 {
     if (--llvm_dsp_factory_aux::gInstance == 0) {
-#ifndef __APPLE__  // Crash on OSX, so deactivated in this case...
+        // Remove the LLVM error handler
+#ifdef __APPLE__
+    #warning Crash on OSX so deactivated in this case
+#else
         LLVMResetFatalErrorHandler();
 #endif
     }
@@ -248,9 +254,8 @@ bool llvm_dsp_factory_aux::initJITAux(string& error_msg)
         fClassInit         = (classInitFun)loadOptimize("classInit" + fClassName);
         fCompute           = (computeFun)loadOptimize("compute" + fClassName);
         fGetJSON           = (getJSONFun)loadOptimize("getJSON" + fClassName);
-
-        string json = removeChar(fGetJSON(), '\\');
-        fDecoder    = createJSONUIDecoder(json);
+        
+        fDecoder = createJSONUIDecoder(fGetJSON());
         endTiming("initJIT");
         return true;
     } catch (

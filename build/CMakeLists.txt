@@ -3,7 +3,7 @@ project (faust)
 
 #######################################
 # versions management
-set (VERSION 2.17.6)
+set (VERSION 2.20.2)
 macro (get_major_minor_patch version)
 	string( REGEX REPLACE "([0-9]*)\\.([0-9]*)\\.([0-9]*)" "\\1"  VERSION_MAJOR ${version} )
 	string( REGEX REPLACE "([0-9]*)\\.([0-9]*)\\.([0-9]*)" "\\2"  VERSION_MINOR ${version} )
@@ -34,6 +34,7 @@ option ( INCLUDE_OSC    	"Include Faust OSC library"	on )
 option ( INCLUDE_HTTP    	"Include Faust HTTPD library"	on )
 option ( INCLUDE_ITP    	"Include Faust Machine library"	off )
 option ( INCLUDE_EMCC    	"Include emcc targets"	on )
+option ( INCLUDE_WASM_GLUE  "Include wasm glue targets"	on )
 option ( MSVC_STATIC		"Use static runtimes with MSVC" off)
 option ( SELF_CONTAINED_LIBRARY	"Don't search system architecture files." off)
 
@@ -125,7 +126,7 @@ elseif(WIN32 OR MSYS)
 	endif()
 	set (FAUST_DEFINITIONS ${FAUST_DEFINITIONS} -D_CRT_SECURE_NO_WARNINGS -D_USE_MATH_DEFINES)
 	set (FAUST_LIBS ${FAUST_LIBS} Ws2_32) #.lib)
-else()
+elseif(NOT ANDROID)
 	set (FAUST_LIBS -lpthread ${FAUST_LIBS})
 endif()
 
@@ -219,9 +220,13 @@ endif()
 ####################################
 if (${CMAKE_GENERATOR} STREQUAL Xcode OR ${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC OR IOS)
 	set (INCLUDE_EMCC off)
+	set (INCLUDE_WASM_GLUE off)
 endif()
 if (INCLUDE_EMCC)
 	add_subdirectory (emcc)
+endif()
+if (INCLUDE_WASM_GLUE)
+	add_subdirectory (wasmglue)
 endif()
 if (INCLUDE_OSC OR OSCDYNAMIC)
 	add_subdirectory (osc)
@@ -347,7 +352,7 @@ install (
 )
 
 # install folders
-set (ARCHSRC android api AU iOS juce soul max-msp nodejs osclib sam smartKeyboard teensy unity webaudio)
+set (ARCHSRC android api AU esp32 iOS juce soul max-msp nodejs osclib sam smartKeyboard teensy unity webaudio)
 foreach (dir ${ARCHSRC})
 	set(ARCHFOLDERS ${ARCHFOLDERS} ${ARCHDIR}/${dir})
 endforeach()
@@ -374,7 +379,13 @@ endif()
 ####################################
 # install VS redistributables
 if (WIN32)
-set (VS "C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/redist/x64/Microsoft.VC140.CRT")
+if (${CMAKE_GENERATOR} STREQUAL "Visual Studio 14 2015 Win64")
+	set (VS "C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/redist/x64/Microsoft.VC140.CRT")
+elseif (${CMAKE_GENERATOR} STREQUAL "Visual Studio 15 2017 Win64")
+	set (VS "C:/Program Files (x86)/Microsoft Visual Studio/2017/Community/VC/Redist/MSVC/14.16.27012/x64/Microsoft.VC141.CRT")
+else()
+	set (VS "/unknown/visual/studio/version")
+endif()
 install (
     FILES  "${VS}/msvcp140.dll" "${VS}/vcruntime140.dll" DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
     PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
